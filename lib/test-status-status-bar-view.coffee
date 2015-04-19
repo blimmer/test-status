@@ -1,4 +1,4 @@
-{View} = require 'atom'
+{View} = require 'atom-space-pen-views'
 
 TestStatusView = require './test-status-view'
 CommandRunner  = require './command-runner'
@@ -9,7 +9,7 @@ class TestStatusStatusBarView extends View
 
   # Internal: Initialize test-status status bar view DOM contents.
   @content: ->
-    @div class: 'inline-block', =>
+    @div click: 'toggleTestStatusView', class: 'inline-block', =>
       @span outlet:  'testStatus', class: 'test-status icon icon-hubot', tabindex: -1, ''
 
   # Internal: Initialize the status bar view and event handlers.
@@ -18,11 +18,20 @@ class TestStatusStatusBarView extends View
     @commandRunner = new CommandRunner(@testStatus, @testStatusView)
     @attach()
 
-    atom.workspace.eachEditor (editor) =>
-      @subscribeBufferEvents(editor)
+    @initialSub   = true
+    @editorSub    = null
+    @statusBarSub = atom.workspace.observeTextEditors (editor) =>
+      # On the initial run, only subscribe to the active text editor.
+      # There is technically no active on subsequent firings of this observer.
+      # If atom introduces an observeActiveTextEditor, that'd be ideal to use here.
+      if @initialSub
+        return unless editor == atom.workspace.getActiveTextEditor()
+        @initialSub = false
 
-    @subscribe this, 'click', =>
-      @testStatusView.toggle()
+      @editorSub?.dispose()
+      @editorSub = editor.onDidSave =>
+        return unless atom.config.get('test-status.autorun')
+        @commandRunner.run()
 
     atom.commands.add 'atom-workspace',
       'test-status:run-tests': => @commandRunner.run()
@@ -40,31 +49,18 @@ class TestStatusStatusBarView extends View
   #
   # Returns nothing.
   destroy: ->
-    atom.workspace.eachEditor (editor) =>
-      @unsubscribeBufferEvents(editor)
-
     @testStatusView.destroy()
     @testStatusView = null
+
+    @statusBarSub.dispose()
+    @statusBarSub = null
+    @editorSub.dispose()
+    @editorSub = null
+
     @detach()
 
-  # Internal: Subscribe to events on the editor buffer.
+  # Internal: Called on click of status bar view
   #
-  # editor - An editor instance to handle buffer events for.
-  #
-  # Returns nothing.
-  subscribeBufferEvents: (editor) ->
-    buffer = editor.getBuffer()
-
-    @subscribe buffer.on 'saved', =>
-      return unless atom.config.get('test-status.autorun')
-      @commandRunner.run()
-
-    @subscribe buffer.on 'destroyed', =>
-      @unsubscribe(buffer)
-
-  # Internal: Unsubscribe from all events on the editor buffer.
-  #
-  # Returns nothing.
-  unsubscribeBufferEvents: (editor) ->
-    buffer = editor.getBuffer()
-    @unsubscribe(buffer)
+  # Returns nothing
+  toggleTestStatusView: ->
+    @testStatusView.toggle()

@@ -21,7 +21,7 @@ class CommandRunner
   #
   # Returns nothing.
   run: ->
-    projPath = atom.project.getPath()
+    projPath = atom.project.getPaths()[0]
     return unless projPath
 
     cfg = config.readOrInitConfig()
@@ -50,7 +50,7 @@ class CommandRunner
     @testStatus.removeClass('success fail').addClass('pending')
 
     try
-      cwd = atom.project.getPath()
+      cwd = atom.project.getPaths()[0]
       proc = spawn("#{process.env.SHELL}", ["-i", "-c", cmd], cwd: cwd)
 
       output = ''
